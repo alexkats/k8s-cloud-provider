@@ -4,20 +4,21 @@ go 1.20
 
 require (
 	github.com/google/go-cmp v0.5.9
+	github.com/google/uuid v1.3.0
 	github.com/kr/pretty v0.2.0
 	golang.org/x/oauth2 v0.6.0
 	google.golang.org/api v0.114.0
-	k8s.io/apimachinery v0.22.2
-	k8s.io/klog/v2 v2.9.0
+	k8s.io/apimachinery v0.26.1
+	k8s.io/klog/v2 v2.80.1
+	k8s.io/utils v0.0.0-20221107191617-1a15be271d1d
 )
 
 require (
 	cloud.google.com/go/compute v1.18.0 // indirect
 	cloud.google.com/go/compute/metadata v0.2.3 // indirect
-	github.com/go-logr/logr v0.4.0 // indirect
+	github.com/go-logr/logr v1.2.3 // indirect
 	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
-	github.com/google/uuid v1.3.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.2.3 // indirect
 	github.com/googleapis/gax-go/v2 v2.7.1 // indirect
 	github.com/kr/text v0.2.0 // indirect

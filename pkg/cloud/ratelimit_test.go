@@ -23,8 +23,8 @@ import (
 	"testing"
 	"time"
 
-	"k8s.io/apimachinery/pkg/util/clock"
 	"k8s.io/apimachinery/pkg/util/wait"
+	clock "k8s.io/utils/clock/testing"
 )
 
 const (

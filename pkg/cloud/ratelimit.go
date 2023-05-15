@@ -21,7 +21,10 @@ import (
 	"sync"
 	"time"
 
-	"k8s.io/apimachinery/pkg/util/clock"
+	"github.com/google/uuid"
+	"k8s.io/klog/v2"
+
+	"k8s.io/utils/clock"
 )
 
 // RateLimitKey is a key identifying the operation to be rate limited. The rate limit
@@ -88,29 +91,53 @@ type ThrottlingStrategy interface {
 
 // StrategyRateLimiter wraps a ThrottlingStrategy with RateLimiter parameters.
 type StrategyRateLimiter struct {
-	lock sync.Mutex
+	lock *sync.Mutex
 	// strategy is the underlying throttling strategy.
 	strategy ThrottlingStrategy
 
-	clock clock.Clock
+	clock               clock.Clock
+	delayObserver       func(delay time.Duration)
+	lockLatencyObserver func(d time.Duration)
 }
 
 // NewStrategyRateLimiter returns a StrategyRateLimiter backed by the provided ThrottlingStrategy.
-func NewStrategyRateLimiter(strategy ThrottlingStrategy) *StrategyRateLimiter {
+func NewStrategyRateLimiter(strategy ThrottlingStrategy, delayObserver func(delay time.Duration), lockLatencyObserver func(d time.Duration), lock *sync.Mutex) *StrategyRateLimiter {
 	return &StrategyRateLimiter{
-		strategy: strategy,
-		clock:    clock.RealClock{},
+		strategy:            strategy,
+		clock:               clock.RealClock{},
+		delayObserver:       delayObserver,
+		lockLatencyObserver: lockLatencyObserver,
+		lock:                lock,
 	}
 }
 
 // Accept block for the delay provided by the strategy or until context.Done(). Key is ignored.
 func (rl *StrategyRateLimiter) Accept(ctx context.Context, _ *RateLimitKey) error {
+	if rl.lock == nil {
+		rl.lock = &sync.Mutex{}
+	}
+	id := uuid.New()
+	klog.V(2).Infof("alexkats: SRL: Acquiring the lock (id=%v)", id)
+	lockStartTime := rl.clock.Now()
 	rl.lock.Lock()
+	lockLatency := rl.clock.Since(lockStartTime)
+	if rl.lockLatencyObserver != nil {
+		rl.lockLatencyObserver(lockLatency)
+	}
+	klog.V(2).Infof("alexkats: SRL: The lock was acquired, waiting time is %q (id=%v)", lockLatency, id)
+	delayStartTime := rl.clock.Now()
 	defer rl.lock.Unlock()
+	delay := rl.strategy.Delay()
+	klog.V(2).Infof("alexkats: SRL: Using the delay %q (id=%v)", delay, id)
+	if rl.delayObserver != nil {
+		rl.delayObserver(delay)
+	}
 	select {
-	case <-rl.clock.After(rl.strategy.Delay()):
+	case <-rl.clock.After(delay):
+		klog.V(2).Infof("alexkats: SRL: The delay has passed, waiting time is %q (id=%v)", rl.clock.Since(delayStartTime), id)
 		break
 	case <-ctx.Done():
+		klog.V(2).Infof("alexkats: SRL: Context was cancelled, waiting time is %q (id=%v)", rl.clock.Since(delayStartTime), id)
 		return ctx.Err()
 	}
 	return nil
@@ -118,6 +145,8 @@ func (rl *StrategyRateLimiter) Accept(ctx context.Context, _ *RateLimitKey) erro
 
 // Observe pushes error further to the strategy. Key is ignored.
 func (rl *StrategyRateLimiter) Observe(_ context.Context, err error, _ *RateLimitKey) {
+	id := uuid.New()
+	klog.V(2).Infof("alexkats: SRL: Observing the error: %v (id=%v)", err, id)
 	rl.strategy.Observe(err)
 }
 
